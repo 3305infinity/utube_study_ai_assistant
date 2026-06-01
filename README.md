@@ -93,6 +93,12 @@ Workflow (high-level):
 
 ---
 
+<img width="2849" height="1442" alt="Screenshot 2026-06-01 134243" src="https://github.com/user-attachments/assets/6c29b29d-cb3f-4c8e-83d3-35a8499cfad3" />
+
+
+
+
+
 ## 3) Tech stack
 
 ### Frontend (extension UI)
