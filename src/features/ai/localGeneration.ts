@@ -62,6 +62,13 @@ export function localChatAnswer(
     .map((r) => r.chunk);
 
   if (!relevant.length) {
+    const entityTerms = terms.filter((t) => t.length >= 4);
+    if (entityTerms.length) {
+      return {
+        content: `I could not find "${entityTerms.join(', ')}" in this video's transcript.${LOCAL_FOOTER}`,
+        chunks: [],
+      };
+    }
     relevant = pickSpreadChunks(chunks, 5);
   }
 

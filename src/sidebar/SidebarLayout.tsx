@@ -44,14 +44,15 @@ export function SidebarLayout({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-surface text-white animate-slide-in pointer-events-auto">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.18),transparent_45%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.22),transparent_50%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(ellipse_at_bottom,rgba(139,92,246,0.08),transparent_60%)]" />
 
-      <header className="relative z-10 border-b border-white/8 px-4 py-4">
+      <header className="relative z-10 border-b border-white/10 bg-surface-raised/40 px-4 py-4 backdrop-blur-md">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/20">
-                <Brain className="h-4 w-4 text-accent-muted" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/40 to-violet-600/30 ring-1 ring-white/10 shadow-glow">
+                <Brain className="h-4 w-4 text-indigo-100" />
               </div>
               <div>
                 <h1 className="text-sm font-semibold text-gradient">YT StudyFlow</h1>

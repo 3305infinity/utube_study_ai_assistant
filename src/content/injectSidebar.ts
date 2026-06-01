@@ -124,7 +124,7 @@ export function injectSidebar(videoId: string): void {
     border: none;
     margin: 0;
     padding: 0;
-    background: #0b1220;
+    background: linear-gradient(180deg, #0a0f1a 0%, #0b1220 40%, #0d1528 100%);
     pointer-events: auto;
     isolation: isolate;
   `;

@@ -49,7 +49,7 @@ export function Tabs<T extends string>({
                 'relative shrink-0 rounded-xl px-2.5 py-2 text-xs font-medium transition-all',
                 'pointer-events-auto cursor-pointer select-none',
                 active
-                  ? 'bg-white/10 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-indigo-500/35 to-violet-500/25 text-white shadow-sm ring-1 ring-indigo-400/25'
                   : 'text-white/55 hover:text-white/85 hover:bg-white/5',
                 item.disabled && 'opacity-40 cursor-not-allowed pointer-events-none'
               )

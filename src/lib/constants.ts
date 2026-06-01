@@ -43,7 +43,10 @@ export const CHUNKING = {
 
 export const VECTOR_SEARCH = {
   TOP_K: 6,
+  /** Chat pulls more transcript context for entity / company questions */
+  CHAT_TOP_K: 14,
   SIMILARITY_THRESHOLD: 0.25,
+  CHAT_MAX_CONTEXT_CHARS: 12_000,
 } as const;
 
 export const GEMINI = {

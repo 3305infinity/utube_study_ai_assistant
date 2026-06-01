@@ -129,34 +129,23 @@ export async function retrieveRelevantChunks(
   question: string,
   chunks: SemanticChunk[],
   topK: number,
-  _threshold: number
+  _threshold: number,
+  recentUserMessages: string[] = []
 ): Promise<SemanticChunk[]> {
-  return keywordSearchChunks(question, chunks, topK);
+  const { retrieveRelevantChunksScored } = await import('./transcriptRetrieval');
+  return retrieveRelevantChunksScored(question, chunks, topK, recentUserMessages).map(
+    (r) => r.chunk
+  );
 }
 
-function keywordSearchChunks(
+export async function retrieveRelevantChunksWithScores(
   question: string,
   chunks: SemanticChunk[],
-  topK: number
-): SemanticChunk[] {
-  const terms = question
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((t) => t.length > 2);
-  if (!terms.length) return chunks.slice(0, topK);
-
-  return chunks
-    .map((chunk) => ({
-      chunk,
-      score: terms.reduce(
-        (n, term) => n + (chunk.text.toLowerCase().includes(term) ? 1 : 0),
-        0
-      ),
-    }))
-    .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK)
-    .map((r) => r.chunk);
+  topK: number,
+  recentUserMessages: string[] = []
+) {
+  const { retrieveRelevantChunksScored } = await import('./transcriptRetrieval');
+  return retrieveRelevantChunksScored(question, chunks, topK, recentUserMessages);
 }
 
 /** Quick connectivity check — one small generateContent call */

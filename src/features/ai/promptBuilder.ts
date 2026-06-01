@@ -13,9 +13,10 @@ function formatTime(s: number): string {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-function formatChunk(chunk: SemanticChunk, includeTimestamps: boolean): string {
-  if (!includeTimestamps) return chunk.text.trim();
-  return `[${formatTime(chunk.startTime)}–${formatTime(chunk.endTime)}] ${chunk.text.trim()}`;
+function formatChunk(chunk: SemanticChunk, includeTimestamps: boolean, index: number): string {
+  const body = chunk.text.trim();
+  if (!includeTimestamps) return `[${index}] ${body}`;
+  return `[${index}] (${formatTime(chunk.startTime)}–${formatTime(chunk.endTime)}) ${body}`;
 }
 
 export function buildEducationalPrompt(params: {
@@ -23,50 +24,63 @@ export function buildEducationalPrompt(params: {
   relevantChunks: SemanticChunk[];
   videoTitle?: string;
   promptOptions: PromptBuilderOptions;
+  conversationSummary?: string;
 }): { system: string; user: string; contextChunks: SemanticChunk[] } {
-  const { userQuery, relevantChunks, videoTitle, promptOptions } = params;
+  const { userQuery, relevantChunks, videoTitle, promptOptions, conversationSummary } = params;
   const contextChunks = relevantChunks.filter((c) => c.text.trim());
 
   let context = '';
-  for (const c of contextChunks) {
-    const line = formatChunk(c, promptOptions.includeTimestamps);
+  const used: SemanticChunk[] = [];
+  for (let i = 0; i < contextChunks.length; i++) {
+    const c = contextChunks[i]!;
+    const line = formatChunk(c, promptOptions.includeTimestamps, i + 1);
     const next = context ? `${context}\n\n${line}` : line;
     if (next.length > promptOptions.maxContextChars) break;
     context = next;
+    used.push(c);
   }
 
   const modeLine =
     promptOptions.mode === 'interview'
-      ? 'Interview mode: connect concepts to likely interview questions. Be precise.'
+      ? 'Interview mode: test understanding with clear, transcript-grounded answers.'
       : promptOptions.mode === 'student'
-        ? 'Student mode: explain step-by-step with minimal fluff.'
-        : 'Explain clearly using only the retrieved lecture context.';
+        ? 'Deep mode: explain clearly with structure (short headings or bullets). Stay grounded.'
+        : 'Answer the student directly using only the transcript segments below.';
 
-  const guard = promptOptions.antiHallucination
-    ? 'Use ONLY the retrieved context. If missing, say you cannot find it in the transcript.'
+  const strictRules = promptOptions.antiHallucination
+    ? [
+        'STRICT RULES:',
+        '1. Use ONLY facts from the numbered "Transcript segments" below — no outside knowledge.',
+        '2. If the answer is not in those segments, reply exactly: "I could not find that in this video\'s transcript."',
+        '3. Do NOT invent companies, job postings, salaries, programs, or details not spoken in the segments.',
+        '4. For "which companies" questions, list ONLY names that appear verbatim in the segments.',
+        '5. Cite evidence as [segment #] or the timestamp shown, e.g. [2] or (1:55), after each key claim.',
+        '6. Be specific and concise — no generic recruitment templates or filler.',
+        '7. Do not repeat the same timestamp citation many times; cite the best 2–4 moments.',
+      ].join('\n')
     : '';
 
   return {
     system: [
-      'You are an AI learning assistant on YouTube StudyFlow.',
-      'Help the student understand the lecture using retrieved transcript segments.',
-      guard,
+      'You are YT StudyFlow, an AI tutor for a single YouTube lecture.',
+      strictRules,
     ]
       .filter(Boolean)
-      .join('\n'),
+      .join('\n\n'),
     user: [
-      videoTitle ? `Video: ${videoTitle}` : '',
+      videoTitle ? `Video title: ${videoTitle}` : '',
+      conversationSummary ? `Recent chat context: ${conversationSummary}` : '',
       modeLine,
-      `Question: ${userQuery.trim()}`,
+      `Student question: ${userQuery.trim()}`,
       '',
-      'Retrieved context:',
-      context || '(none)',
+      'Transcript segments (only source of truth):',
+      context || '(no segments retrieved)',
       '',
-      'Answer with educational clarity. Reference timestamps when useful.',
+      'Write your answer now.',
     ]
       .filter(Boolean)
       .join('\n'),
-    contextChunks,
+    contextChunks: used,
   };
 }
 
