@@ -14,6 +14,10 @@ import { Sidebar } from '@/sidebar/Sidebar';
 import sidebarStyles from '@/sidebar/sidebar.css?inline';
 import contentStyles from './content.css?inline';
 import { UI } from '@lib/constants';
+import {
+  installSidebarKeyboardIsolation,
+  removeSidebarKeyboardIsolation,
+} from './keyboardIsolation';
 
 const HOST_ID = 'yt-studyflow-host';
 const ROOT_ID = 'yt-studyflow-root';
@@ -126,6 +130,7 @@ export function injectSidebar(videoId: string): void {
   `;
 
   document.body.appendChild(host);
+  installSidebarKeyboardIsolation();
 
   const container = buildShadowRoot(host);
   reactRoot = ReactDOM.createRoot(container);
@@ -143,6 +148,7 @@ export function injectSidebar(videoId: string): void {
 export function removeSidebar(): void {
   reactRoot?.unmount();
   reactRoot = null;
+  removeSidebarKeyboardIsolation();
   document.getElementById(HOST_ID)?.remove();
   activeVideoId = null;
   adjustYouTubeLayout(false);

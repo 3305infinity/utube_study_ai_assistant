@@ -164,8 +164,8 @@ export async function testGeminiConnection(apiKey: string): Promise<{ ok: boolea
   const key = apiKey.trim();
   if (!key) return { ok: false, error: 'Key is empty' };
 
-  const url =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  const model = GEMINI.CHAT_MODEL;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   try {
     const r = await geminiFetch(
       url,

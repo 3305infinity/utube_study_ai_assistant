@@ -27,24 +27,67 @@ export function useVideo(videoId: string) {
 
   useEffect(() => {
     const onTime = (e: Event) => {
-      const detail = (e as CustomEvent<{ currentTime: number; videoId: string }>).detail;
+      const detail = (e as CustomEvent<{ currentTime: number; videoId: string; duration?: number }>)
+        .detail;
       if (!detail || detail.videoId !== videoId) return;
       setCurrentTime(detail.currentTime);
+      if (detail.duration && detail.duration > 0) {
+        const state = useVideoStore.getState();
+        setMetadata({ title: state.title, channel: state.channel, duration: detail.duration });
+      }
+    };
+
+    const onDuration = (e: Event) => {
+      const detail = (e as CustomEvent<{ duration: number; videoId: string }>).detail;
+      if (!detail || detail.videoId !== videoId || !(detail.duration > 0)) return;
+      const state = useVideoStore.getState();
+      setMetadata({ title: state.title, channel: state.channel, duration: detail.duration });
+    };
+
+    const onAdEnded = (e: Event) => {
+      const detail = (e as CustomEvent<{ videoId: string }>).detail;
+      if (!detail || detail.videoId !== videoId) return;
+      void loadVideo();
     };
 
     window.addEventListener(STUDYFLOW_EVENTS.TIME_UPDATE, onTime);
-    return () => window.removeEventListener(STUDYFLOW_EVENTS.TIME_UPDATE, onTime);
-  }, [videoId, setCurrentTime]);
+    window.addEventListener(STUDYFLOW_EVENTS.DURATION_UPDATE, onDuration);
+    window.addEventListener(STUDYFLOW_EVENTS.AD_ENDED, onAdEnded);
+    return () => {
+      window.removeEventListener(STUDYFLOW_EVENTS.TIME_UPDATE, onTime);
+      window.removeEventListener(STUDYFLOW_EVENTS.DURATION_UPDATE, onDuration);
+      window.removeEventListener(STUDYFLOW_EVENTS.AD_ENDED, onAdEnded);
+    };
+  }, [videoId, setCurrentTime, setMetadata, loadVideo]);
 
-  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    loadVideo();
-    retryRef.current = setTimeout(loadVideo, 1500);
+    void loadVideo();
+    const t1 = setTimeout(() => void loadVideo(), 1500);
+    const t2 = setTimeout(() => void loadVideo(), 5000);
+
+    pollRef.current = setInterval(() => {
+      const d = getVideoDurationFromPlayer();
+      if (d > 0) {
+        const state = useVideoStore.getState();
+        setMetadata({ title: state.title, channel: state.channel, duration: d });
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }, 500);
+
+    const pollCap = setTimeout(() => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    }, 60_000);
+
     return () => {
-      if (retryRef.current) clearTimeout(retryRef.current);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (pollRef.current) clearInterval(pollRef.current);
+      clearTimeout(pollCap);
     };
-  }, [loadVideo]);
+  }, [loadVideo, setMetadata]);
 
   return { loadVideo };
 }

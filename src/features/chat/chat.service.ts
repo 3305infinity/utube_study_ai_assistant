@@ -83,8 +83,11 @@ export async function sendChatMessage(params: {
       },
     });
 
+    const chatModel =
+      params.mode === 'deep' ? GEMINI.GENERATION_MODEL : GEMINI.CHAT_MODEL;
+
     const result = await gemini.generateText({
-      model: GEMINI.CHAT_MODEL,
+      model: chatModel,
       prompt: { system: built.system, user: built.user },
       config: { temperature: 0.25, maxOutputTokens: 900 },
     });

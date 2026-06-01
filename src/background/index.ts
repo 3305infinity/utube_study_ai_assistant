@@ -95,21 +95,33 @@ async function geminiFetchInBackground(
   const sep = url.includes('?') ? '&' : '?';
   const fullUrl = `${url}${sep}key=${encodeURIComponent(key)}`;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
   try {
     const resp = await fetch(fullUrl, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body || undefined,
+      signal: controller.signal,
     });
     const text = await resp.text();
     return { ok: resp.ok, status: resp.status, body: text };
   } catch (err) {
+    const message =
+      err instanceof Error && err.name === 'AbortError'
+        ? 'Gemini request timed out (30s)'
+        : err instanceof Error
+          ? err.message
+          : String(err);
     return {
       ok: false,
       status: 0,
       body: '',
-      error: err instanceof Error ? err.message : String(err),
+      error: message,
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

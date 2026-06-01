@@ -102,7 +102,7 @@ export function useTranscript(videoId: string) {
     void loadTranscript();
 
     // Player/captions may load after sidebar — retry with backoff (skip if already success)
-    for (const delay of [2000, 5000, 10000]) {
+    for (const delay of [1500, 3500, 7000, 12000, 20000]) {
       retryTimers.current.push(
         setTimeout(() => {
           const s = useTranscriptStore.getState();

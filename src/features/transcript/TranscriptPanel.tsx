@@ -274,7 +274,8 @@ export function TranscriptPanel({
                   <p className="text-sm font-medium">No transcript available</p>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/55">
-                  {error?.message ?? 'Enable CC on the YouTube player, then retry.'}
+                  {error?.message ??
+                    'StudyFlow turns on captions automatically. If this video has no subtitles, none are available. Otherwise click Retry.'}
                 </p>
                 {onReload && (
                   <button type="button" onClick={onReload} className="mt-3 rounded-xl bg-indigo-500/20 px-3 py-2 text-xs text-white hover:bg-indigo-500/30">

@@ -1,5 +1,5 @@
 /**
- * YouTube player event tracking for transcript sync + future analytics.
+ * YouTube player event tracking for transcript sync + duration after ads.
  */
 
 import { getYouTubePlayer } from '@lib/youtube';
@@ -10,6 +10,15 @@ export interface VideoEvent {
   videoId: string;
   timestamp: number;
   data?: Record<string, unknown>;
+}
+
+function emitDurationUpdate(videoId: string, duration: number, currentTime: number): void {
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  window.dispatchEvent(
+    new CustomEvent(STUDYFLOW_EVENTS.DURATION_UPDATE, {
+      detail: { videoId, duration, currentTime },
+    })
+  );
 }
 
 export function setupYouTubeEventTracking(videoId: string): () => void {
@@ -23,11 +32,28 @@ export function setupYouTubeEventTracking(videoId: string): () => void {
   let lastTime = player.currentTime;
   let lastPlaybackRate = player.playbackRate;
   let pauseStartTime = 0;
+  let lastKnownDuration = player.duration;
+  let adShowing = false;
 
   const emit = (event: VideoEvent) => {
     window.dispatchEvent(
       new CustomEvent(STUDYFLOW_EVENTS.PLAYER_EVENT, { detail: event })
     );
+  };
+
+  const refreshDuration = (reason: string) => {
+    const duration = player.duration;
+    const currentTime = player.currentTime;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    if (duration === lastKnownDuration && reason !== 'ad-ended') return;
+    lastKnownDuration = duration;
+    emit({
+      type: ANALYTICS_EVENTS.VIDEO_LOAD,
+      videoId,
+      timestamp: Date.now(),
+      data: { duration, currentTime, reason },
+    });
+    emitDurationUpdate(videoId, duration, currentTime);
   };
 
   const handleTimeUpdate = () => {
@@ -45,9 +71,13 @@ export function setupYouTubeEventTracking(videoId: string): () => void {
 
     lastTime = currentTime;
 
+    if (player.duration > 0 && player.duration !== lastKnownDuration) {
+      refreshDuration('timeupdate');
+    }
+
     window.dispatchEvent(
       new CustomEvent(STUDYFLOW_EVENTS.TIME_UPDATE, {
-        detail: { currentTime, videoId },
+        detail: { currentTime, videoId, duration: player.duration },
       })
     );
   };
@@ -63,6 +93,7 @@ export function setupYouTubeEventTracking(videoId: string): () => void {
   };
 
   const handlePlay = () => {
+    refreshDuration('play');
     if (pauseStartTime > 0) {
       const duration = Date.now() - pauseStartTime;
       window.dispatchEvent(
@@ -87,11 +118,53 @@ export function setupYouTubeEventTracking(videoId: string): () => void {
     }
   };
 
+  const handleLoadedMetadata = () => refreshDuration('loadedmetadata');
+  const handleDurationChange = () => refreshDuration('durationchange');
+
+  const handleAdEnded = () => {
+    lastTime = player.currentTime;
+    refreshDuration('ad-ended');
+    window.dispatchEvent(
+      new CustomEvent(STUDYFLOW_EVENTS.AD_ENDED, { detail: { videoId, currentTime: player.currentTime } })
+    );
+    window.dispatchEvent(
+      new CustomEvent(STUDYFLOW_EVENTS.TIME_UPDATE, {
+        detail: { currentTime: player.currentTime, videoId, duration: player.duration },
+      })
+    );
+  };
+
   player.addEventListener('timeupdate', handleTimeUpdate);
   player.addEventListener('pause', handlePause);
   player.addEventListener('play', handlePlay);
   player.addEventListener('ratechange', handleRateChange);
+  player.addEventListener('loadedmetadata', handleLoadedMetadata);
+  player.addEventListener('durationchange', handleDurationChange);
 
+  const playerShell = document.querySelector('.html5-video-player');
+  let adObserver: MutationObserver | null = null;
+  if (playerShell) {
+    adShowing = playerShell.classList.contains('ad-showing');
+    adObserver = new MutationObserver(() => {
+      const nowAd = playerShell.classList.contains('ad-showing');
+      if (adShowing && !nowAd) {
+        setTimeout(handleAdEnded, 150);
+      }
+      adShowing = nowAd;
+    });
+    adObserver.observe(playerShell, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Duration is often 0 until the main video starts (especially after pre-roll ads).
+  const durationPoll = window.setInterval(() => {
+    if (player.duration > 0) {
+      refreshDuration('poll');
+      window.clearInterval(durationPoll);
+    }
+  }, 400);
+  const durationPollCap = window.setTimeout(() => window.clearInterval(durationPoll), 45_000);
+
+  refreshDuration('init');
   emit({
     type: ANALYTICS_EVENTS.VIDEO_LOAD,
     videoId,
@@ -104,5 +177,10 @@ export function setupYouTubeEventTracking(videoId: string): () => void {
     player.removeEventListener('pause', handlePause);
     player.removeEventListener('play', handlePlay);
     player.removeEventListener('ratechange', handleRateChange);
+    player.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    player.removeEventListener('durationchange', handleDurationChange);
+    adObserver?.disconnect();
+    window.clearInterval(durationPoll);
+    window.clearTimeout(durationPollCap);
   };
 }

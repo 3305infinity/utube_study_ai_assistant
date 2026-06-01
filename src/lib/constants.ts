@@ -28,6 +28,8 @@ export const TRANSCRIPT_TRANSPORT = {
 
 export const STUDYFLOW_EVENTS = {
   TIME_UPDATE: 'yt-studyflow-time-update',
+  DURATION_UPDATE: 'yt-studyflow-duration-update',
+  AD_ENDED: 'yt-studyflow-ad-ended',
   PLAYER_EVENT: 'yt-studyflow-event',
   HEATMAP_UPDATE: 'yt-studyflow-heatmap-update',
   CONFUSION_UPDATE: 'yt-studyflow-confusion-update',
@@ -45,9 +47,12 @@ export const VECTOR_SEARCH = {
 } as const;
 
 export const GEMINI = {
-  /** gemini-1.5-flash has the most reliable free-tier availability */
-  CHAT_MODEL: 'gemini-1.5-flash',
-  GENERATION_MODEL: 'gemini-1.5-flash',
+  /** Simple chat — cheapest / highest RPM */
+  CHAT_MODEL: 'gemini-2.5-flash-lite',
+  /** Notes, chapters, quiz, flashcards */
+  GENERATION_MODEL: 'gemini-2.5-flash',
+  /** Deep reasoning only — strict rate limits; avoid for routine calls */
+  REASONING_MODEL: 'gemini-2.5-pro',
   /** text-embedding-004 was shut down Jan 2026 — use gemini-embedding-001 */
   EMBEDDING_MODEL: 'gemini-embedding-001',
   EMBEDDING_FALLBACKS: ['embedding-001'] as const,

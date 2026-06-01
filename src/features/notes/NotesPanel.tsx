@@ -122,13 +122,15 @@ export function NotesPanel({ videoId }: { videoId: string }) {
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {active ? (
             <>
-              <div className="mb-4 flex items-start justify-between gap-2 border-b border-white/8 pb-3">
+              <div className="mb-5 flex items-start justify-between gap-2 border-b border-white/10 pb-4">
                 <div>
-                  <h3 className="text-base font-semibold text-white">{active.title}</h3>
-                  <p className="mt-0.5 text-[11px] capitalize text-white/40">{active.type} notes</p>
+                  <h3 className="text-lg font-semibold leading-snug tracking-tight text-white">
+                    {active.title}
+                  </h3>
+                  <p className="mt-1 text-xs capitalize text-white/45">{active.type} notes</p>
                 </div>
                 <button
                   type="button"
@@ -138,7 +140,7 @@ export function NotesPanel({ videoId }: { videoId: string }) {
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-              <MarkdownView content={active.content} />
+              <MarkdownView content={active.content} variant="notes" />
             </>
           ) : (
             <div className="flex h-full items-center justify-center text-center">
