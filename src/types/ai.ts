@@ -9,6 +9,10 @@ export interface SemanticChunk {
   endTime: number;
   embedding: number[] | null;
   transcriptChunkIds: string[];
+  /** Set when indexed as part of a YouTube playlist */
+  videoId?: string;
+  videoTitle?: string;
+  playlistId?: string;
 }
 
 export type EmbeddingVector = number[];
@@ -34,6 +38,83 @@ export interface ChatCitation {
   endTime: number;
   excerpt: string;
   similarityScore: number;
+  videoId?: string;
+  videoTitle?: string;
+}
+
+export interface PlaylistInfo {
+  playlistId: string;
+  title: string;
+  videoIds: string[];
+}
+
+export type StudyLevel = 'beginner' | 'intermediate' | 'advanced';
+
+export interface StudySegment {
+  id: string;
+  title: string;
+  description: string;
+  startTime: number;
+  endTime: number;
+  videoId: string;
+  videoTitle?: string;
+  watched?: boolean;
+}
+
+export interface StudyRetrievalEvidence {
+  chunkId: string;
+  videoId: string;
+  videoTitle?: string;
+  startTime: number;
+  endTime: number;
+  excerpt: string;
+  score: number;
+}
+
+export interface StudyConceptNode {
+  id: string;
+  label: string;
+  children?: StudyConceptNode[];
+}
+
+export interface StudyQuickQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+}
+
+export interface StudyMasteryBreakdown {
+  percent: number;
+  quizCorrect: number;
+  quizTotal: number;
+  flashcardsReviewed: number;
+  flashcardsTotal: number;
+  segmentsWatched: number;
+  segmentsTotal: number;
+  revisionSessions: number;
+}
+
+export interface StudyPlan {
+  id: string;
+  playlistId: string;
+  topic: string;
+  level: StudyLevel;
+  estimatedMinutes: number;
+  prerequisites: string[];
+  segments: StudySegment[];
+  keyConcepts: string[];
+  interviewQuestions: string[];
+  conceptMap: StudyConceptNode[];
+  retrievalEvidence: StudyRetrievalEvidence[];
+  nextTopics: string[];
+  notesPreview: string;
+  quickQuiz: StudyQuickQuestion[];
+  mastery: StudyMasteryBreakdown;
+  watchedSegmentIds: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface AIResponse {

@@ -4,6 +4,7 @@ import { useVideo } from '@/hooks/useVideo';
 import { useTranscript } from '@/hooks/useTranscript';
 import { useRagStore } from '@/store/rag.store';
 import { useChatStore } from '@/features/chat/chat.store';
+import { usePlaylistStore } from '@/store/playlist.store';
 
 export interface SidebarProps {
   videoId: string;
@@ -20,6 +21,7 @@ export function Sidebar({ videoId }: SidebarProps) {
 
   useEffect(() => {
     void loadVideo();
+    void usePlaylistStore.getState().syncFromPage();
   }, [videoId, loadVideo]);
 
   return (

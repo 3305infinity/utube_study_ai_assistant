@@ -5,6 +5,7 @@
 import type { Chapter, Flashcard, QuizQuestion, SemanticChunk } from '@/types/ai';
 import type { NoteType } from '@/types/notes';
 import { formatTime } from '@lib/youtube';
+import { detectResponseIntent, bulletCountFromQuery } from '@/features/ai/responseIntent';
 import { DbIds, nowMs } from '@lib/db';
 import { defaultSm2State } from '@/features/revision/sm2';
 
@@ -73,19 +74,22 @@ export function localChatAnswer(
     relevant = pickSpreadChunks(chunks, 5);
   }
 
-  if (q.includes('summarize') || q.includes('summary') || q.includes('bullet')) {
-    const bullets = pickSpreadChunks(relevant.length ? relevant : chunks, 3);
+  const intent = detectResponseIntent(question, mode);
+
+  if (intent === 'summary' || intent === 'bullets') {
+    const count = bulletCountFromQuery(question) ?? 5;
+    const bullets = pickSpreadChunks(relevant.length ? relevant : chunks, count);
     const lines = bullets.map(
-      (c) => `- **${formatTime(c.startTime)}** — ${firstSentence(c.text)}`
+      (c, i) => `- **Point ${i + 1}** (${formatTime(c.startTime)}): ${firstSentence(c.text, 120)}`
     );
-    const title = videoTitle ? `**${videoTitle}**\n\n` : '';
+    const title = videoTitle ? `**${videoTitle}** — main points\n\n` : '**Main points**\n\n';
     return {
-      content: `${title}${lines.join('\n')}${LOCAL_FOOTER}`,
+      content: `${title}${lines.join('\n')}\n\n*English summary from transcript segments.*${LOCAL_FOOTER}`,
       chunks: bullets,
     };
   }
 
-  if (mode === 'interview') {
+  if (intent === 'interview') {
     const pairs = relevant.slice(0, 4).map((c, i) => {
       const snippet = firstSentence(c.text, 160);
       return `**Q${i + 1}:** What does the instructor explain around ${formatTime(c.startTime)}?\n**A${i + 1}:** ${snippet}`;
@@ -157,14 +161,16 @@ export function localChapters(chunks: SemanticChunk[], maxChapters = 8): Chapter
   for (let i = 0; i < maxChapters; i++) {
     const group = chunks.slice(i * step, (i + 1) * step);
     if (!group.length) break;
-    const summary = group.map((g) => g.text).join(' ').slice(0, 200);
     chapters.push({
       id: `ch_local_${i}`,
-      title: `Part ${i + 1}: ${firstSentence(group[0]!.text, 48)}`,
+      title: `Section ${i + 1}`,
       startTime: group[0]!.startTime,
       endTime: group[group.length - 1]!.endTime,
-      summary,
-      keyPoints: group.slice(0, 3).map((g) => firstSentence(g.text, 80)),
+      summary:
+        'Open chapters with Gemini connected for an English summary. Transcript segment is non-English or raw.',
+      keyPoints: group
+        .slice(0, 3)
+        .map((g) => `At ${formatTime(g.startTime)}: concept covered in lecture`),
     });
   }
 

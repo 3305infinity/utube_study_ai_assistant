@@ -59,9 +59,10 @@ export const GEMINI = {
   /** text-embedding-004 was shut down Jan 2026 — use gemini-embedding-001 */
   EMBEDDING_MODEL: 'gemini-embedding-001',
   EMBEDDING_FALLBACKS: ['embedding-001'] as const,
-  /** Embeddings disabled by default — they burn quota; keyword search is enough for chat */
-  EMBEDDINGS_ENABLED: false,
-  MAX_EMBED_CHUNKS: 0,
+  /** Vector RAG: cosine similarity over stored embeddings */
+  EMBEDDINGS_ENABLED: true,
+  /** Cap per video to protect free-tier embedding quota */
+  MAX_EMBED_CHUNKS: 48,
   MAX_OUTPUT_TOKENS: 1200,
   TEMPERATURE: 0.3,
 } as const;

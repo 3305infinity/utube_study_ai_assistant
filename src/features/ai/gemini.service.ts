@@ -90,7 +90,9 @@ export class GeminiService {
 
   private ensureKey(): void {
     if (!this.apiKey) {
-      throw new Error('Gemini API key missing. Add it in Settings.');
+      throw new Error(
+        'Gemini API key missing. Set VITE_GEMINI_API_KEY in .env and run npm run build.'
+      );
     }
     if (!this.apiKey.startsWith('AIza') && !this.apiKey.startsWith('AQ.')) {
       throw new Error(

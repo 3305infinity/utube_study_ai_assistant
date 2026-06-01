@@ -2,7 +2,14 @@
  * Notes type definitions
  */
 
-export type NoteType = 'concise' | 'detailed' | 'interview' | 'revision' | 'custom';
+export type NoteType =
+  | 'concise'
+  | 'detailed'
+  | 'interview'
+  | 'revision'
+  | 'implementation'
+  | 'contest'
+  | 'custom';
 
 export interface Note {
   id: string;

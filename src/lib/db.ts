@@ -28,6 +28,8 @@ export type TranscriptRow = BaseEntity & {
 
 export type SemanticChunkRow = BaseEntity & {
   semanticChunkId: string;
+  playlistId?: string;
+  videoTitle?: string;
   text: string;
   startTime: number;
   endTime: number;
@@ -40,13 +42,89 @@ export type EmbeddingRow = BaseEntity & {
   vector: number[];
 };
 
+export type PlaylistRow = {
+  id: string;
+  title: string;
+  videoIds: string[];
+  videoTitles: Record<string, string>;
+  createdAt: number;
+  updatedAt: number;
+  schemaVersion: number;
+};
+
+export type StudyPlanRow = {
+  id: string;
+  playlistId: string;
+  topic: string;
+  level: 'beginner' | 'intermediate' | 'advanced';
+  estimatedMinutes: number;
+  prerequisites: string[];
+  segments: Array<{
+    id: string;
+    title: string;
+    description: string;
+    startTime: number;
+    endTime: number;
+    videoId: string;
+    videoTitle?: string;
+    watched?: boolean;
+  }>;
+  keyConcepts: string[];
+  interviewQuestions: string[];
+  conceptMap: Array<{
+    id: string;
+    label: string;
+    children?: Array<{ id: string; label: string; children?: unknown[] }>;
+  }>;
+  retrievalEvidence: Array<{
+    chunkId: string;
+    videoId: string;
+    videoTitle?: string;
+    startTime: number;
+    endTime: number;
+    excerpt: string;
+    score: number;
+  }>;
+  nextTopics: string[];
+  notesPreview: string;
+  quickQuiz: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctAnswer: number;
+    explanation: string;
+  }>;
+  mastery: {
+    percent: number;
+    quizCorrect: number;
+    quizTotal: number;
+    flashcardsReviewed: number;
+    flashcardsTotal: number;
+    segmentsWatched: number;
+    segmentsTotal: number;
+    revisionSessions: number;
+  };
+  watchedSegmentIds: string[];
+  createdAt: number;
+  updatedAt: number;
+  schemaVersion: number;
+};
+
 export type NoteRow = BaseEntity & {
-  type: 'concise' | 'detailed' | 'interview' | 'revision' | 'custom';
+  type:
+    | 'concise'
+    | 'detailed'
+    | 'interview'
+    | 'revision'
+    | 'implementation'
+    | 'contest'
+    | 'custom';
   title: string;
   content: string;
   format: 'markdown' | 'plain';
   tags: string[];
   isPinned: boolean;
+  playlistId?: string;
   timestampAnchors?: Array<{ startTime: number; endTime?: number; label?: string }>;
 };
 
@@ -64,6 +142,7 @@ export type ChapterRow = BaseEntity & {
 
 export type FlashcardRow = BaseEntity & {
   flashcardId: string;
+  playlistId?: string;
   front: string;
   back: string;
   difficulty: 'easy' | 'medium' | 'hard';
@@ -98,6 +177,8 @@ export class StudyflowDB extends Dexie {
   transcripts!: Table<TranscriptRow, string>;
   semanticChunks!: Table<SemanticChunkRow, string>;
   embeddings!: Table<EmbeddingRow, string>;
+  playlists!: Table<PlaylistRow, string>;
+  studyPlans!: Table<StudyPlanRow, string>;
   notes!: Table<NoteRow, string>;
   chapters!: Table<ChapterRow, string>;
   flashcards!: Table<FlashcardRow, string>;
@@ -114,6 +195,19 @@ export class StudyflowDB extends Dexie {
       notes: 'id, videoId, type, createdAt, updatedAt, isPinned',
       chapters: 'id, videoId, updatedAt',
       flashcards: 'id, videoId, nextReviewDate, difficulty',
+      quizzes: 'id, videoId, mode, updatedAt',
+      analytics: 'id, videoId, kind, createdAt',
+    });
+
+    this.version(2).stores({
+      transcripts: 'id, videoId, updatedAt',
+      semanticChunks: 'id, videoId, playlistId, startTime, endTime, updatedAt',
+      embeddings: 'id, videoId, semanticChunkId, model, updatedAt',
+      playlists: 'id, updatedAt',
+      studyPlans: 'id, playlistId, updatedAt',
+      notes: 'id, videoId, playlistId, type, createdAt, updatedAt, isPinned',
+      chapters: 'id, videoId, updatedAt',
+      flashcards: 'id, videoId, playlistId, nextReviewDate, difficulty',
       quizzes: 'id, videoId, mode, updatedAt',
       analytics: 'id, videoId, kind, createdAt',
     });
@@ -141,4 +235,6 @@ export const DbIds = {
   flashcard: (videoId: string, cardId: string) => `fc|${videoId}|${cardId}`,
   quiz: (videoId: string, quizId: string) => `quiz|${videoId}|${quizId}`,
   analytics: (videoId: string, id: string) => `analytics|${videoId}|${id}`,
+  playlist: (playlistId: string) => `playlist|${playlistId}`,
+  studyPlan: (playlistId: string, topicSlug: string) => `study|${playlistId}|${topicSlug}`,
 };

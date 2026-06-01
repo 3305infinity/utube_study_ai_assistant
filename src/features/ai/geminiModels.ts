@@ -4,13 +4,10 @@ export function normalizeModelId(model: string): string {
   return model.replace(/^models\//, '').trim();
 }
 
-/** Primary model first, then lighter fallbacks (never escalate to Pro automatically). */
+/** Prefer flash-lite first to protect free-tier RPM/quota, then requested model. */
 export function buildTextModelFallbackChain(primary: string): string[] {
-  const chain = [
-    normalizeModelId(primary),
-    GEMINI.CHAT_MODEL,
-    GEMINI.GENERATION_MODEL,
-  ];
+  const p = normalizeModelId(primary);
+  const chain = [GEMINI.CHAT_MODEL, p, GEMINI.GENERATION_MODEL];
   const seen = new Set<string>();
   const out: string[] = [];
   for (const id of chain) {

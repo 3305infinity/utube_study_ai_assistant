@@ -64,7 +64,7 @@ export function useAiReadiness(): AiReadiness {
       return {
         state: 'no-key',
         message:
-          'Add a Google AI Studio API key in Settings for full AI, or wait for local index.',
+          'Set VITE_GEMINI_API_KEY in .env and rebuild, or wait for local transcript index.',
       };
     }
 

@@ -6,13 +6,14 @@ import { twMerge } from 'tailwind-merge';
 
 import { useChat } from '@/hooks/useChat';
 import { useSettingsStore } from '@/store/settings.store';
-import { useRagStore } from '@/store/rag.store';
+import { usePlaylistStore } from '@/store/playlist.store';
 import { formatTime } from '@lib/youtube';
 import { Loader } from '@/components/Loader';
 import { FeatureGate } from '@/components/FeatureGate';
 import { MarkdownView } from '@/components/MarkdownView';
 import type { ChatMode } from '@/features/chat/chat.service';
 import { useAiReadiness, useHasApiKey } from '@/hooks/useAiReadiness';
+import { hasBuiltInGeminiKey } from '@lib/env';
 
 const SUGGESTIONS = [
   'Which companies or topics are mentioned in this video?',
@@ -23,8 +24,7 @@ const SUGGESTIONS = [
 export function ChatPanel({
   onJumpToTime,
 }: {
-  videoId: string;
-  onJumpToTime: (seconds: number) => void;
+  onJumpToTime: (seconds: number, citeVideoId?: string) => void;
 }) {
   const [input, setInput] = useState('');
   const defaultMode = useSettingsStore((s) => s.chatMode);
@@ -33,7 +33,10 @@ export function ChatPanel({
   const { messages, loading, error, send, clear } = useChat();
   const readiness = useAiReadiness();
   const hasApiKey = useHasApiKey();
-  const keywordOnly = useRagStore((s) => s.keywordOnly);
+  const playlist = usePlaylistStore((s) => s.playlist);
+  const scope = usePlaylistStore((s) => s.scope);
+  const setScope = usePlaylistStore((s) => s.setScope);
+  const indexedVideoCount = usePlaylistStore((s) => s.indexedVideoCount);
 
   useEffect(() => {
     setMode(defaultMode);
@@ -68,7 +71,10 @@ export function ChatPanel({
             </div>
             <div>
               <span className="text-sm font-semibold text-white">AI Chat</span>
-              <p className="text-[10px] text-white/45">Answers grounded in this video&apos;s transcript</p>
+              <p className="text-[10px] text-white/45">
+                Transcript + world knowledge · cited timestamps
+                {readiness.state === 'ready' && readiness.keywordOnly ? ' · keyword search' : ''}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -105,15 +111,50 @@ export function ChatPanel({
 
       {!hasApiKey && (
         <div className="mx-4 mt-3 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-3 py-2.5 text-[11px] leading-5 text-amber-50">
-          Add a Google AI Studio API key in <strong className="font-medium">Settings</strong> for full AI answers.
-          Without it, replies are transcript excerpts only.
+          Set <code className="text-amber-100">VITE_GEMINI_API_KEY</code> in{' '}
+          <code className="text-amber-100">.env</code> and run <code className="text-amber-100">npm run build</code>.
+          Without a key, replies use transcript excerpts only.
+        </div>
+      )}
+      {hasBuiltInGeminiKey() && (
+        <div className="mx-4 mt-2 text-[10px] text-white/35">Using API key from build (.env)</div>
+      )}
+
+      {playlist && (
+        <div className="mx-4 mt-3 flex gap-1 rounded-xl border border-white/10 bg-black/20 p-0.5">
+          <button
+            type="button"
+            onClick={() => setScope('video')}
+            className={twMerge(
+              clsx(
+                'flex-1 rounded-lg py-1.5 text-[10px] font-medium',
+                scope === 'video' ? 'bg-indigo-500/35 text-white' : 'text-white/45'
+              )
+            )}
+          >
+            This video
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setScope('playlist');
+              void usePlaylistStore.getState().refreshPlaylistChunks();
+            }}
+            className={twMerge(
+              clsx(
+                'flex-1 rounded-lg py-1.5 text-[10px] font-medium',
+                scope === 'playlist' ? 'bg-violet-500/35 text-white' : 'text-white/45'
+              )
+            )}
+          >
+            Whole playlist ({indexedVideoCount})
+          </button>
         </div>
       )}
 
       {hasApiKey && (
-        <div className="mx-4 mt-3 rounded-xl border border-indigo-400/25 bg-indigo-500/10 px-3 py-2 text-[11px] leading-5 text-indigo-100/90">
-          Tutor mode: this video&apos;s transcript + general knowledge (definitions, DSA, interview angles).
-          {keywordOnly ? ' Transcript search is local; Gemini adds explanations.' : ''}
+        <div className="mx-4 mt-2 rounded-xl border border-indigo-400/25 bg-indigo-500/10 px-3 py-2 text-[11px] leading-5 text-indigo-100/90">
+          Hybrid RAG: vector embeddings + keyword search. Answers use lecture transcript + general knowledge.
         </div>
       )}
 
@@ -194,13 +235,20 @@ export function ChatPanel({
                       <button
                         key={c.id}
                         type="button"
-                        onClick={() => onJumpToTime(c.startTime)}
-                        className="group flex items-start gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-2 text-left hover:border-indigo-400/30 hover:bg-indigo-500/10"
-                      >
-                        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-medium text-indigo-100">
+                      onClick={() => onJumpToTime(c.startTime, c.videoId)}
+                      className="group flex items-start gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-2 text-left hover:border-indigo-400/30 hover:bg-indigo-500/10"
+                    >
+                      <span className="mt-0.5 inline-flex shrink-0 flex-col items-start gap-0.5 rounded-md bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-medium text-indigo-100">
+                        <span className="inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatTime(c.startTime)}
                         </span>
+                        {c.videoTitle && (
+                          <span className="max-w-[120px] truncate text-[9px] text-indigo-200/80">
+                            {c.videoTitle}
+                          </span>
+                        )}
+                      </span>
                         <span className="line-clamp-2 text-[11px] leading-4 text-white/55 group-hover:text-white/75">
                           {c.excerpt}
                         </span>

@@ -3,6 +3,7 @@ import type { AIResponse, ChatCitation, SemanticChunk } from '@/types/ai';
 import { createGeminiService } from '@/features/ai/gemini.service';
 import { localChatAnswer } from '@/features/ai/localGeneration';
 import { buildEducationalPrompt } from '@/features/ai/promptBuilder';
+import { detectResponseIntent } from '@/features/ai/responseIntent';
 import { retrieveRelevantChunksWithScores } from '@/features/ai/ragPipeline.service';
 import type { ScoredChunk } from '@/features/ai/transcriptRetrieval';
 import { canUseGeminiApi } from '@lib/storage';
@@ -20,10 +21,13 @@ function recentUserMessages(limit = 4): string[] {
 }
 
 function conversationSummary(): string | undefined {
-  const msgs = useChatStore.getState().messages.slice(-6);
+  const msgs = useChatStore
+    .getState()
+    .messages.filter((m) => m.content.trim())
+    .slice(-8);
   if (msgs.length < 2) return undefined;
   return msgs
-    .map((m) => `${m.role === 'user' ? 'Student' : 'Assistant'}: ${m.content.slice(0, 280)}`)
+    .map((m) => `${m.role === 'user' ? 'Student' : 'Assistant'}: ${m.content.slice(0, 400)}`)
     .join('\n');
 }
 
@@ -51,12 +55,14 @@ function toCitations(
     if (seenTimes.has(t)) continue;
     seenTimes.add(t);
     out.push({
-      id: `cite_${chunk.id}`,
+      id: `cite_${chunk.videoId ?? 'v'}_${chunk.id}`,
       chunkId: chunk.id,
       startTime: chunk.startTime,
       endTime: Math.min(chunk.endTime, maxTime),
       excerpt: chunk.text.slice(0, 220).trim(),
       similarityScore: score,
+      videoId: chunk.videoId,
+      videoTitle: chunk.videoTitle,
     });
     if (out.length >= 5) break;
   }
@@ -124,30 +130,34 @@ export async function sendChatMessage(params: {
   try {
     const gemini = await createGeminiService();
 
-    const promptMode =
-      mode === 'interview' ? 'interview' : mode === 'deep' ? 'student' : 'default';
+    const responseIntent = detectResponseIntent(question, mode);
 
     const built = buildEducationalPrompt({
       userQuery: question,
       relevantChunks: relevant,
       videoTitle: params.videoTitle,
       conversationSummary: conversationSummary(),
+      responseIntent,
       promptOptions: {
-        mode: promptMode,
+        mode: mode === 'interview' ? 'interview' : mode === 'deep' ? 'student' : 'default',
         includeTimestamps: true,
         maxContextChars: VECTOR_SEARCH.CHAT_MAX_CONTEXT_CHARS,
       },
     });
 
-    const chatModel =
-      mode === 'concise' ? GEMINI.CHAT_MODEL : GEMINI.GENERATION_MODEL;
-
-    const maxTokens = mode === 'interview' ? 1600 : mode === 'deep' ? 1500 : 1100;
+    const maxTokens =
+      responseIntent === 'interview'
+        ? 1400
+        : responseIntent === 'bullets' || responseIntent === 'summary'
+          ? 900
+          : mode === 'deep'
+            ? 1200
+            : 900;
 
     const result = await gemini.generateText({
-      model: chatModel,
+      model: GEMINI.CHAT_MODEL,
       prompt: { system: built.system, user: built.user },
-      config: { temperature: 0.38, maxOutputTokens: maxTokens },
+      config: { temperature: 0.32, maxOutputTokens: maxTokens },
     });
 
     const citations = toCitations(scored, built.contextChunks, videoDuration);

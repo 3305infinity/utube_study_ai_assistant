@@ -25,10 +25,14 @@ export async function generateNote(params: {
   semanticChunks: SemanticChunk[];
   videoTitle?: string;
   includeTimestamps?: boolean;
+  topicQuery?: string;
 }): Promise<Note> {
   const includeTimestamps = params.includeTimestamps ?? true;
+  const query = params.topicQuery
+    ? `${params.topicQuery} ${params.type} study notes`
+    : `${params.type} study notes key concepts walkthrough ${params.videoTitle ?? ''}`;
   const relevant = await retrieveRelevantChunks(
-    `${params.type} study notes key concepts walkthrough ${params.videoTitle ?? ''}`,
+    query,
     params.semanticChunks,
     VECTOR_SEARCH.CHAT_TOP_K,
     0,
@@ -56,9 +60,12 @@ export async function generateNote(params: {
     });
 
     const resp = await gemini.generateText({
-      model: GEMINI.GENERATION_MODEL,
+      model: GEMINI.CHAT_MODEL,
       prompt: { system, user },
-      config: { temperature: 0.4, maxOutputTokens: params.type === 'interview' ? 2000 : 1800 },
+      config: {
+        temperature: 0.35,
+        maxOutputTokens: params.type === 'interview' || params.type === 'detailed' ? 2000 : 1400,
+      },
     });
 
     const parsed = parseJson<{ title: string; content: string; tags: string[] }>(resp.content);

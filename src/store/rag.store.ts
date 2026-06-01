@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import type { SemanticChunk } from '@/types/ai';
-import { buildSemanticIndex, buildKeywordOnlyIndex } from '@/features/ai/ragPipeline.service';
+import {
+  buildSemanticIndex,
+  buildKeywordOnlyIndex,
+  indexMetaFromPage,
+} from '@/features/ai/ragPipeline.service';
+import { usePlaylistStore } from '@/store/playlist.store';
 import { isQuotaOrAuthError } from '@/features/ai/localGeneration';
 import { isValidGeminiApiKey } from '@lib/storage';
 
@@ -34,10 +39,14 @@ export const useRagStore = create<RagState>((set, get) => ({
       const { getGeminiApiKey } = await import('@lib/storage');
       const key = (await getGeminiApiKey())?.trim() ?? '';
 
+      const meta = indexMetaFromPage();
+
       if (!isValidGeminiApiKey(key)) {
         const chunks = await buildKeywordOnlyIndex(videoId, enhancedChunks, (stage) =>
-          set({ stage })
+          set({ stage }), meta
         );
+        void usePlaylistStore.getState().registerCurrentVideo(videoId, meta.videoTitle);
+        void usePlaylistStore.getState().refreshPlaylistChunks();
         set({
           chunks,
           status: 'ready',
@@ -48,24 +57,26 @@ export const useRagStore = create<RagState>((set, get) => ({
       }
 
       const chunks = await buildSemanticIndex(videoId, enhancedChunks, (stage) =>
-        set({ stage })
+        set({ stage }), meta
       );
       const keywordOnly = !chunks.some((c) => c.embedding?.length);
+      void usePlaylistStore.getState().registerCurrentVideo(videoId, meta.videoTitle);
+      void usePlaylistStore.getState().refreshPlaylistChunks();
       set({
         chunks,
         status: 'ready',
         stage: keywordOnly
           ? isValidGeminiApiKey(key)
-            ? 'Ready — keyword search (AI chat uses Gemini)'
+            ? 'Ready — keyword + vector search'
             : 'Local mode — add API key in Settings'
-          : 'Ready',
+          : 'Vector RAG ready',
         keywordOnly,
       });
     } catch (e) {
       if (isQuotaOrAuthError(e)) {
         try {
           const chunks = await buildKeywordOnlyIndex(videoId, enhancedChunks, (stage) =>
-            set({ stage })
+            set({ stage }), indexMetaFromPage()
           );
           set({
             chunks,

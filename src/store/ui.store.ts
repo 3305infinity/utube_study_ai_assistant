@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export type SidebarTab =
   | 'transcript'
   | 'chat'
+  | 'study'
   | 'notes'
   | 'chapters'
   | 'revision'

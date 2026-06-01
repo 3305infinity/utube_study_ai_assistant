@@ -13,6 +13,7 @@ interface NotesState {
     type: NoteType;
     chunks: SemanticChunk[];
     videoTitle?: string;
+    topicQuery?: string;
   }) => Promise<void>;
   remove: (id: string, videoId: string) => Promise<void>;
 }
@@ -35,10 +36,16 @@ export const useNotesStore = create<NotesState>((set) => ({
     }
   },
 
-  generate: async ({ videoId, type, chunks, videoTitle }) => {
+  generate: async ({ videoId, type, chunks, videoTitle, topicQuery }) => {
     set({ loading: true, error: null });
     try {
-      const note = await generateNote({ videoId, type, semanticChunks: chunks, videoTitle });
+      const note = await generateNote({
+        videoId,
+        type,
+        semanticChunks: chunks,
+        videoTitle,
+        topicQuery,
+      });
       const notes = await listNotes(videoId);
       set({ notes, loading: false });
       void note;

@@ -7,6 +7,23 @@ import { buildChaptersPrompt, parseJson } from '@/features/ai/promptBuilder';
 import { localChapters } from '@/features/ai/localGeneration';
 import { retrieveRelevantChunks } from '@/features/ai/ragPipeline.service';
 
+function hasDevanagari(text: string): boolean {
+  return /[\u0900-\u097F]/.test(text);
+}
+
+function englishifyChapters(chapters: Chapter[]): Chapter[] {
+  return chapters.map((ch, i) => ({
+    ...ch,
+    title: hasDevanagari(ch.title) ? `Section ${i + 1}` : ch.title,
+    summary: hasDevanagari(ch.summary)
+      ? 'Topic covered in this segment (see English summary in Chat or Notes).'
+      : ch.summary,
+    keyPoints: ch.keyPoints.map((kp) =>
+      hasDevanagari(kp) ? 'Key idea from this segment' : kp
+    ),
+  }));
+}
+
 export async function generateChaptersForVideo(params: {
   videoId: string;
   semanticChunks: SemanticChunk[];
@@ -38,13 +55,13 @@ export async function generateChaptersForVideo(params: {
     });
 
     const resp = await gemini.generateText({
-      model: GEMINI.GENERATION_MODEL,
+      model: GEMINI.CHAT_MODEL,
       prompt: { system, user },
       config: { temperature: 0.3, maxOutputTokens: 1200 },
     });
 
     const parsed = parseJson<{ chapters: Chapter[] }>(resp.content);
-    chapters = parsed?.chapters ?? [];
+    chapters = englishifyChapters(parsed?.chapters ?? []);
   } catch (e) {
     console.warn('[YT StudyFlow] Gemini chapters failed — using local', e);
     chapters = localChapters(params.semanticChunks, maxChapters);

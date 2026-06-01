@@ -4,6 +4,7 @@ import { Brain, ChevronRight } from 'lucide-react';
 
 import { TranscriptPanel } from '@/features/transcript/TranscriptPanel';
 import { ChatPanel } from '@/features/chat/ChatPanel';
+import { StudyPanel } from '@/features/study/StudyPanel';
 import { NotesPanel } from '@/features/notes/NotesPanel';
 import { ChaptersPanel } from '@/features/chapters/ChaptersPanel';
 import { RevisionPanel } from '@/features/revision/RevisionPanel';
@@ -12,6 +13,8 @@ import { ExportPanel } from '@/features/export/ExportPanel';
 import { SettingsPanel } from '@/pages/Settings';
 import { Tabs } from '@/components/Tabs';
 import { seekTo, formatTime } from '@lib/youtube';
+import { watchUrlFor } from '@lib/playlist';
+import { usePlaylistStore } from '@/store/playlist.store';
 import { useVideoStore } from '@store/video.store';
 import { useUiStore, type SidebarTab } from '@store/ui.store';
 import { useRagPipeline } from '@/hooks/useRagPipeline';
@@ -19,6 +22,7 @@ import { useRagPipeline } from '@/hooks/useRagPipeline';
 const TAB_ITEMS: Array<{ id: SidebarTab; label: string }> = [
   { id: 'transcript', label: 'Transcript' },
   { id: 'chat', label: 'Chat' },
+  { id: 'study', label: 'Study' },
   { id: 'notes', label: 'Notes' },
   { id: 'chapters', label: 'Chapters' },
   { id: 'revision', label: 'Revision' },
@@ -38,7 +42,17 @@ export function SidebarLayout({
   const { activeTab, setActiveTab, toggleSidebarCollapsed, sidebarCollapsed } = useUiStore();
   useRagPipeline(videoId);
 
-  const onJumpToTime = useMemo(() => (seconds: number) => seekTo(seconds), []);
+  const onJumpToTime = useMemo(
+    () => (seconds: number, citeVideoId?: string) => {
+      const playlistId = usePlaylistStore.getState().playlist?.playlistId;
+      if (citeVideoId && citeVideoId !== videoId) {
+        window.location.href = watchUrlFor(citeVideoId, seconds, playlistId ?? undefined);
+      } else {
+        seekTo(seconds);
+      }
+    },
+    [videoId]
+  );
 
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
@@ -100,7 +114,8 @@ export function SidebarLayout({
         {activeTab === 'transcript' && (
           <TranscriptPanel onJumpToTime={onJumpToTime} onReload={onReloadTranscript} />
         )}
-        {activeTab === 'chat' && <ChatPanel videoId={videoId} onJumpToTime={onJumpToTime} />}
+        {activeTab === 'chat' && <ChatPanel onJumpToTime={onJumpToTime} />}
+        {activeTab === 'study' && <StudyPanel videoId={videoId} onJumpToTime={onJumpToTime} />}
         {activeTab === 'notes' && <NotesPanel videoId={videoId} />}
         {activeTab === 'chapters' && (
           <ChaptersPanel videoId={videoId} onJumpToTime={onJumpToTime} />

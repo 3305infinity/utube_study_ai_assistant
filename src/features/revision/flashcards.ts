@@ -13,11 +13,112 @@ export async function clearFlashcardsForVideo(videoId: string): Promise<void> {
   await getDb().flashcards.where('videoId').equals(videoId).delete();
 }
 
+export async function listFlashcardsByPlaylist(playlistId: string): Promise<Flashcard[]> {
+  await ensureDbReady();
+  const rows = await getDb().flashcards.where('playlistId').equals(playlistId).toArray();
+  return rows.map((r) => ({
+    id: r.id,
+    videoId: r.videoId,
+    front: r.front,
+    back: r.back,
+    difficulty: r.difficulty,
+    nextReviewDate: r.nextReviewDate,
+    interval: r.intervalDays,
+    repetitions: r.repetitions,
+    easeFactor: r.easeFactor,
+    createdAt: r.createdAt,
+    lastReviewed: r.lastReviewedAt,
+  }));
+}
+
+export async function generateFlashcardsForPlaylist(params: {
+  playlistId: string;
+  semanticChunks: SemanticChunk[];
+  videoTitle?: string;
+  maxCards?: number;
+}): Promise<Flashcard[]> {
+  const maxCards = params.maxCards ?? 24;
+  const relevant = await retrieveRelevantChunks(
+    'key concepts definitions algorithms',
+    params.semanticChunks,
+    VECTOR_SEARCH.CHAT_TOP_K + 4,
+    0
+  );
+  const context = (relevant.length ? relevant : params.semanticChunks)
+    .map((c) => `[${c.videoTitle ?? c.videoId}] ${c.text.trim()}`)
+    .join('\n\n');
+
+  if (!(await canUseGeminiApi())) {
+    return [];
+  }
+
+  const gemini = await createGeminiService();
+  const { system, user } = buildFlashcardsPrompt({
+    videoTitle: params.videoTitle ?? 'Playlist course',
+    maxCards,
+    context,
+  });
+  const resp = await gemini.generateText({
+    model: GEMINI.CHAT_MODEL,
+    prompt: { system, user },
+    config: { temperature: 0.35, maxOutputTokens: 2000 },
+  });
+  const parsed = parseJson<{
+    flashcards: Array<{
+      id: string;
+      front: string;
+      back: string;
+      difficulty: 'easy' | 'medium' | 'hard';
+    }>;
+  }>(resp.content);
+  const raw = parsed?.flashcards ?? [];
+  const ts = nowMs();
+  const sm2 = defaultSm2State();
+  const cards: Flashcard[] = [];
+  const db = getDb();
+
+  for (const c of raw.slice(0, maxCards)) {
+    const flashcardId = c.id || `fc_pl_${ts}_${cards.length}`;
+    const videoId = params.semanticChunks[0]?.videoId ?? 'playlist';
+    const card: Flashcard = {
+      id: DbIds.flashcard(videoId, flashcardId),
+      videoId,
+      front: c.front,
+      back: c.back,
+      difficulty: c.difficulty ?? 'medium',
+      nextReviewDate: sm2.nextReviewDate,
+      interval: sm2.intervalDays,
+      repetitions: sm2.repetitions,
+      easeFactor: sm2.easeFactor,
+      createdAt: ts,
+    };
+    cards.push(card);
+    await db.flashcards.put({
+      id: card.id,
+      videoId,
+      playlistId: params.playlistId,
+      flashcardId,
+      front: card.front,
+      back: card.back,
+      difficulty: card.difficulty,
+      nextReviewDate: card.nextReviewDate,
+      intervalDays: card.interval,
+      repetitions: card.repetitions,
+      easeFactor: card.easeFactor,
+      createdAt: ts,
+      updatedAt: ts,
+      schemaVersion: 2,
+    });
+  }
+  return cards;
+}
+
 export async function generateFlashcardsForVideo(params: {
   videoId: string;
   semanticChunks: SemanticChunk[];
   videoTitle?: string;
   maxCards?: number;
+  playlistId?: string;
 }): Promise<Flashcard[]> {
   const maxCards = params.maxCards ?? 12;
 
@@ -73,7 +174,7 @@ export async function generateFlashcardsForVideo(params: {
     });
 
     const resp = await gemini.generateText({
-      model: GEMINI.GENERATION_MODEL,
+      model: GEMINI.CHAT_MODEL,
       prompt: { system, user },
       config: { temperature: 0.35, maxOutputTokens: 1200 },
     });
@@ -145,6 +246,7 @@ export async function generateFlashcardsForVideo(params: {
     await db.flashcards.put({
       id: card.id,
       videoId: params.videoId,
+      playlistId: params.playlistId,
       flashcardId,
       front: card.front,
       back: card.back,

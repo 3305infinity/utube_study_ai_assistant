@@ -56,7 +56,7 @@ export async function generateQuizForVideo(params: {
     });
 
     const resp = await gemini.generateText({
-      model: GEMINI.GENERATION_MODEL,
+      model: GEMINI.CHAT_MODEL,
       prompt: { system, user },
       config: { temperature: 0.3, maxOutputTokens: 1600 },
     });
