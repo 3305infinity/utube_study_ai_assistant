@@ -92,10 +92,13 @@ Workflow (high-level):
 - Provides actionable study signals (e.g., which parts you keep returning to)
 
 ---
+<img width="2873" height="1442" alt="image" src="https://github.com/user-attachments/assets/0607fb62-fa0a-4410-8da2-cd839dc43614" />
 
-<img width="2849" height="1442" alt="Screenshot 2026-06-01 134243" src="https://github.com/user-attachments/assets/6c29b29d-cb3f-4c8e-83d3-35a8499cfad3" />
+<img width="748" height="1336" alt="image" src="https://github.com/user-attachments/assets/f6168b06-63ce-44ba-b323-8e75d1c796e1" />
 
+<img width="730" height="1322" alt="image" src="https://github.com/user-attachments/assets/ab08dce9-eda5-4bff-bdfc-f14800006730" />
 
+<img width="736" height="1345" alt="image" src="https://github.com/user-attachments/assets/f592209a-a135-424f-9ec4-e0958d204132" />
 
 
 
