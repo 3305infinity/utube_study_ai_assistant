@@ -110,9 +110,10 @@ export function ChatPanel({
         </div>
       )}
 
-      {hasApiKey && keywordOnly && (
+      {hasApiKey && (
         <div className="mx-4 mt-3 rounded-xl border border-indigo-400/25 bg-indigo-500/10 px-3 py-2 text-[11px] leading-5 text-indigo-100/90">
-          Smart transcript search + Gemini. Answers use matched transcript lines only — not general web knowledge.
+          Tutor mode: this video&apos;s transcript + general knowledge (definitions, DSA, interview angles).
+          {keywordOnly ? ' Transcript search is local; Gemini adds explanations.' : ''}
         </div>
       )}
 

@@ -4,7 +4,6 @@ export type PromptBuilderOptions = {
   mode: 'interview' | 'student' | 'default';
   includeTimestamps: boolean;
   maxContextChars: number;
-  antiHallucination: boolean;
 };
 
 function formatTime(s: number): string {
@@ -17,6 +16,48 @@ function formatChunk(chunk: SemanticChunk, includeTimestamps: boolean, index: nu
   const body = chunk.text.trim();
   if (!includeTimestamps) return `[${index}] ${body}`;
   return `[${index}] (${formatTime(chunk.startTime)}–${formatTime(chunk.endTime)}) ${body}`;
+}
+
+const HYBRID_TUTOR_SYSTEM = `You are YT StudyFlow — an expert tutor for ONE YouTube lecture.
+
+Use TWO knowledge sources together:
+1) VIDEO TRANSCRIPT (below) — what the instructor actually said. Cite with [segment #] or (m:ss).
+2) GENERAL WORLD KNOWLEDGE — standard definitions, algorithms, intuition, interview angles, comparisons. Prefix with "Background:" when it is NOT from the video.
+
+Rules:
+- Answer the student's exact question first (1–3 direct sentences).
+- Tie explanations to what happens in the video, then enrich with general knowledge where it helps.
+- For coding/DSA topics: state conditions clearly, walk through the instructor's approach, mention complexity/edge cases if relevant.
+- Do NOT invent quotes or pretend the instructor said something that is not in the transcript.
+- If the video never mentions a name/topic, say so, then optionally add brief general context.
+- Avoid vague essay summaries. Be concrete, structured, and useful.
+- Use markdown: short headings, bullets, bold for key terms.`;
+
+function modeInstructions(mode: PromptBuilderOptions['mode']): string {
+  switch (mode) {
+    case 'interview':
+      return [
+        'FORMAT — Interview prep (not a summary):',
+        '- Give 4–6 items as **Q:** / **A:** pairs.',
+        '- Questions should sound like a real interviewer (definitions, "why", edge cases, trade-offs).',
+        '- Answers blend transcript facts + general CS/domain knowledge.',
+        '- End with 2 "Follow-up questions they might ask next".',
+      ].join('\n');
+    case 'student':
+      return [
+        'FORMAT — Deep explanation:',
+        '- Structure: Direct answer → Step-by-step walkthrough → Key insight → Common mistake.',
+        '- Use the instructor\'s example from the video when available.',
+        '- Add Background notes for standard definitions the video assumes.',
+      ].join('\n');
+    default:
+      return [
+        'FORMAT — Concise tutor reply:',
+        '- Max ~8–12 lines unless the question needs more.',
+        '- Bullets OK. No filler like "In this video the speaker discusses..."',
+        '- End with one actionable tip or check-your-understanding question.',
+      ].join('\n');
+  }
 }
 
 export function buildEducationalPrompt(params: {
@@ -40,41 +81,17 @@ export function buildEducationalPrompt(params: {
     used.push(c);
   }
 
-  const modeLine =
-    promptOptions.mode === 'interview'
-      ? 'Interview mode: test understanding with clear, transcript-grounded answers.'
-      : promptOptions.mode === 'student'
-        ? 'Deep mode: explain clearly with structure (short headings or bullets). Stay grounded.'
-        : 'Answer the student directly using only the transcript segments below.';
-
-  const strictRules = promptOptions.antiHallucination
-    ? [
-        'STRICT RULES:',
-        '1. Use ONLY facts from the numbered "Transcript segments" below — no outside knowledge.',
-        '2. If the answer is not in those segments, reply exactly: "I could not find that in this video\'s transcript."',
-        '3. Do NOT invent companies, job postings, salaries, programs, or details not spoken in the segments.',
-        '4. For "which companies" questions, list ONLY names that appear verbatim in the segments.',
-        '5. Cite evidence as [segment #] or the timestamp shown, e.g. [2] or (1:55), after each key claim.',
-        '6. Be specific and concise — no generic recruitment templates or filler.',
-        '7. Do not repeat the same timestamp citation many times; cite the best 2–4 moments.',
-      ].join('\n')
-    : '';
-
   return {
-    system: [
-      'You are YT StudyFlow, an AI tutor for a single YouTube lecture.',
-      strictRules,
-    ]
-      .filter(Boolean)
-      .join('\n\n'),
+    system: [HYBRID_TUTOR_SYSTEM, modeInstructions(promptOptions.mode)].join('\n\n'),
     user: [
-      videoTitle ? `Video title: ${videoTitle}` : '',
-      conversationSummary ? `Recent chat context: ${conversationSummary}` : '',
-      modeLine,
+      videoTitle ? `Video: ${videoTitle}` : '',
+      conversationSummary ? `Recent chat:\n${conversationSummary}` : '',
+      modeInstructions(promptOptions.mode),
+      '',
       `Student question: ${userQuery.trim()}`,
       '',
-      'Transcript segments (only source of truth):',
-      context || '(no segments retrieved)',
+      '--- VIDEO TRANSCRIPT SEGMENTS ---',
+      context || '(no segments retrieved — use general knowledge and say transcript was thin)',
       '',
       'Write your answer now.',
     ]
@@ -84,6 +101,35 @@ export function buildEducationalPrompt(params: {
   };
 }
 
+function notesModeSpec(mode: string): string {
+  switch (mode) {
+    case 'interview':
+      return [
+        'Type: INTERVIEW PREP',
+        'content must be markdown with 8–12 **Q:** / **A:** pairs.',
+        'Mix questions an interviewer would ask + answers from video + brief Background where needed.',
+        'NO generic summary paragraphs.',
+      ].join(' ');
+    case 'detailed':
+      return [
+        'Type: DETAILED NOTES',
+        'content: structured markdown with ## sections: Problem/Topic, Approach, Steps, Key formulas/rules, Pitfalls, Takeaways.',
+        'Extract the actual solution walkthrough from the video, not vague themes.',
+      ].join(' ');
+    case 'revision':
+      return [
+        'Type: REVISION CHEATSHEET',
+        'content: compact markdown — definitions, conditions, 5–8 bullet facts, 3 exam-style reminders.',
+      ].join(' ');
+    case 'concise':
+    default:
+      return [
+        'Type: CONCISE NOTES',
+        'content: markdown bullet list of 6–10 specific facts/steps from the lecture only.',
+      ].join(' ');
+  }
+}
+
 export function buildNotesPrompt(params: {
   mode: string;
   videoTitle?: string;
@@ -91,14 +137,19 @@ export function buildNotesPrompt(params: {
   includeTimestamps: boolean;
 }): { system: string; user: string } {
   return {
-    system:
-      'You generate study notes from lecture transcripts. Return valid JSON only: {"title":string,"content":string,"tags":string[]}. No markdown fences.',
+    system: [
+      'You generate high-quality study notes from a lecture transcript.',
+      'Use transcript facts + general subject knowledge to clarify jargon.',
+      'Return valid JSON only: {"title":string,"content":string,"tags":string[]}.',
+      'content is markdown. No JSON fences.',
+      notesModeSpec(params.mode),
+    ].join(' '),
     user: [
       `Video: ${params.videoTitle ?? 'Unknown'}`,
-      `Note type: ${params.mode}`,
-      `Include timestamps: ${params.includeTimestamps}`,
+      notesModeSpec(params.mode),
+      `Timestamps in notes: ${params.includeTimestamps}`,
       '',
-      'Transcript context:',
+      'Transcript:',
       params.context,
     ].join('\n'),
   };
@@ -111,7 +162,7 @@ export function buildChaptersPrompt(params: {
 }): { system: string; user: string } {
   return {
     system:
-      'Generate semantic video chapters. Return JSON only: {"chapters":[{"id":string,"title":string,"startTime":number,"endTime":number,"summary":string,"keyPoints":string[]}]}. Times in seconds.',
+      'Generate semantic video chapters with specific titles (not "Part 1"). Return JSON only: {"chapters":[{"id":string,"title":string,"startTime":number,"endTime":number,"summary":string,"keyPoints":string[]}]}. Times in seconds.',
     user: [
       `Video: ${params.videoTitle ?? 'Unknown'}`,
       `Max chapters: ${params.maxChapters}`,

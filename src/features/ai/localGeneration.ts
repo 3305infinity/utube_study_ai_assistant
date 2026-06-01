@@ -46,7 +46,8 @@ function firstSentence(text: string, maxLen = 200): string {
 export function localChatAnswer(
   question: string,
   chunks: SemanticChunk[],
-  videoTitle?: string
+  videoTitle?: string,
+  mode: 'concise' | 'deep' | 'interview' = 'concise'
 ): { content: string; chunks: SemanticChunk[] } {
   const q = question.toLowerCase();
   const terms = q.split(/\W+/).filter((t) => t.length > 2);
@@ -84,12 +85,28 @@ export function localChatAnswer(
     };
   }
 
+  if (mode === 'interview') {
+    const pairs = relevant.slice(0, 4).map((c, i) => {
+      const snippet = firstSentence(c.text, 160);
+      return `**Q${i + 1}:** What does the instructor explain around ${formatTime(c.startTime)}?\n**A${i + 1}:** ${snippet}`;
+    });
+    return {
+      content: `### Interview-style (from transcript)\n\n${pairs.join('\n\n')}\n\n*Add API key for full AI + background knowledge.*${LOCAL_FOOTER}`,
+      chunks: relevant,
+    };
+  }
+
   const body = relevant
     .map((c) => `**[${formatTime(c.startTime)}]** ${firstSentence(c.text, 280)}`)
     .join('\n\n');
 
+  const intro =
+    mode === 'deep'
+      ? '### From this lecture (add API key for full explanations + background):\n\n'
+      : '### From the transcript:\n\n';
+
   return {
-    content: `Based on the transcript:\n\n${body}${LOCAL_FOOTER}`,
+    content: `${intro}${body}${LOCAL_FOOTER}`,
     chunks: relevant,
   };
 }
@@ -108,14 +125,23 @@ export function localNotes(
     return `${heading}\n${body}`;
   });
 
+  if (type === 'interview') {
+    const qa = spread.slice(0, 6).map((c, i) => {
+      const q = firstSentence(c.text, 80).replace(/\.$/, '');
+      return `**Q${i + 1}:** ${q}?\n**A${i + 1}:** ${firstSentence(c.text, 200)}`;
+    });
+    return {
+      title,
+      content: `# Interview prep\n\n${qa.join('\n\n')}${LOCAL_FOOTER}`,
+    };
+  }
+
   const intro =
     type === 'concise'
       ? '# Key points\n'
       : type === 'detailed'
         ? '# Detailed notes\n'
-        : type === 'interview'
-          ? '# Interview prep\n'
-          : '# Revision sheet\n';
+        : '# Revision sheet\n';
 
   return {
     title,

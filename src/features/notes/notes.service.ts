@@ -28,10 +28,11 @@ export async function generateNote(params: {
 }): Promise<Note> {
   const includeTimestamps = params.includeTimestamps ?? true;
   const relevant = await retrieveRelevantChunks(
-    `Generate ${params.type} study notes for this lecture`,
+    `${params.type} study notes key concepts walkthrough ${params.videoTitle ?? ''}`,
     params.semanticChunks,
-    VECTOR_SEARCH.TOP_K + 2,
-    0
+    VECTOR_SEARCH.CHAT_TOP_K,
+    0,
+    []
   );
 
   const contextChunks = relevant.length ? relevant : params.semanticChunks;
@@ -57,7 +58,7 @@ export async function generateNote(params: {
     const resp = await gemini.generateText({
       model: GEMINI.GENERATION_MODEL,
       prompt: { system, user },
-      config: { temperature: 0.35, maxOutputTokens: 1400 },
+      config: { temperature: 0.4, maxOutputTokens: params.type === 'interview' ? 2000 : 1800 },
     });
 
     const parsed = parseJson<{ title: string; content: string; tags: string[] }>(resp.content);
